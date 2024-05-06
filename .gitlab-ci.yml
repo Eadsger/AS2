@@ -1,0 +1,99 @@
+stages:
+  - Build
+  - Source Composition Analysis
+  - Static Application Security Testing
+  - Dynamic Application Security Testing 
+  - Test
+  - Deploy
+  - Alert
+
+services:
+  - docker:dind 
+
+build:
+  image: docker:latest
+  stage: Build
+  variables:
+    IMAGE: ${CI_REGISTRY_USER}/simpleapp:latest
+  script:
+    - echo "Construindo a imagem Docker..."
+    - docker build -t ${CI_REGISTRY_USER}/simpleapp:latest .
+    - echo "Fazendo login no Docker registry..."
+    - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}
+    - echo "Enviando a imagem Docker..."
+    - docker push ${CI_REGISTRY_USER}/simpleapp:latest
+
+test:
+  image: ubuntu:latest
+  stage: Test
+  script:
+    - echo "Installing curl...""
+    - apt-get update && apt-get install -y curl
+    - echo "Testing the project...""
+    - status=$(curl -s -o devnull -w %{http_code} httpsedsonlmachado.github.ioDevOps-Somativa2)
+    - if [ $status -eq 200 ]; then
+        echo "Hello World! Test executed successfully.";
+      else
+        echo Failed to access the page;
+        exit 1;
+      fi
+
+deploy:
+  image: ubuntu:latest
+  stage: Deploy
+  script:
+    - echo "Implantando o projeto..."
+    - apt-get update -qq
+    - 'which ssh-agent || ( apt-get install -qq openssh-client )'
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+    - echo "Puxando a imagem Docker..."
+    - ssh $DEPLOY_HOST "docker pull ${CI_REGISTRY_USER}/simpleapp:latest"
+    - echo "Parando o antigo container..."
+    - ssh $DEPLOY_HOST "docker stop app3"
+    - echo "Iniciando novo container..."
+    - ssh $DEPLOY_HOST "docker run --rm -d --name app3 -p $APP_PORT:$APP_PORT ${CI_REGISTRY_USER}/simpleapp:latest"
+
+owasp:
+  image: docker:latest
+  stage: Dynamic Application Security Testing
+  script:
+    - echo "Realizando DAST usando OWASP ZAP..."
+    - docker run -v $(pwd):/zap/wrk -u $(id -u):$(id -g) -t owasp/zap2docker-stable zap-baseline.py -t ${URL2} -J report_json
+  artifacts:
+    when: always
+    paths: [report_json.json]
+  allow_failure: true
+
+bandit:
+  stage: Static Application Security Testing
+  script:
+    - echo "Executando Bandit para SAST..."
+    - pip install -r requirements.txt
+    - pip install bandit
+    - bandit -r app.py -f json -o bandit-output.json
+  artifacts:
+    when: always
+    paths: [bandit-output.json]
+  allow_failure: true
+
+dependencycheck:
+  stage: Source Composition Analysis
+  script:
+    - echo "Executando Dependency Check..."
+    - pip install safety
+    - safety check -r requirements.txt --json > safety-results.json 
+  artifacts:
+    paths: [safety-results.json]
+    when: always
+  allow_failure: true
+
+alert:
+  stage: Alert
+  after_script:
+    - chmod +x telegram.sh
+    - ./telegram.sh
+  script:
+    - echo "Enviando mensagem de alerta para o Telegram..."

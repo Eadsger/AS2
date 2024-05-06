@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Model Survey</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        canvas {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Car Model Survey</h1>
+        <form id="surveyForm">
+            <p>Which is the best car model?</p>
+            <select id="carModel">
+                <option value="Toyota Camry">Toyota Camry</option>
+                <option value="Honda Civic">Honda Civic</option>
+                <option value="Ford Mustang">Ford Mustang</option>
+                <option value="Chevrolet Corvette">Chevrolet Corvette</option>
+                <option value="BMW 3 Series">BMW 3 Series</option>
+                <option value="Mercedes-Benz E-Class">Mercedes-Benz E-Class</option>
+                <option value="Tesla Model S">Tesla Model S</option>
+                <option value="Audi A4">Audi A4</option>
+                <option value="Lamborghini Huracan">Lamborghini Huracan</option>
+                <option value="Porsche 911">Porsche 911</option>
+            </select>
+            <p>Rating (from 1 to 10):</p>
+            <input type="number" id="rating" min="1" max="10" required>
+            <button type="submit">Submit</button>
+        </form>
+        <canvas id="chart"></canvas>
+    </div>
+
+    <script>
+        var data = {
+            labels: [],
+            datasets: [{
+                label: 'Average Rating',
+                data: [],
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        };
+
+        var ctx = document.getElementById('chart').getContext('2d');
+        var chart = new Chart(ctx, {
+            type: 'bar',
+            data: data,
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true,
+                            stepSize: 1
+                        }
+                    }]
+                }
+            }
+        });
+
+        document.getElementById('surveyForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            var carModel = document.getElementById('carModel').value;
+            var rating = parseInt(document.getElementById('rating').value);
+
+            var index = data.labels.indexOf(carModel);
+            if (index === -1) {
+                data.labels.push(carModel);
+                data.datasets[0].data.push(rating);
+            } else {
+                data.datasets[0].data[index] = (data.datasets[0].data[index] + rating) / 2;
+            }
+
+            chart.update();
+        });
+    </script>
+</body>
+</html>
+
